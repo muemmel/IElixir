@@ -1,27 +1,44 @@
-FROM pprzetacznik/ielixir-requirements
-
-ENV WORK_DIR=/opt
+FROM jupyter/base-notebook
 
 USER root
 
-RUN apt install -y \
-    libzmq3-dev \
-    libsqlite3-dev
+ENV WORK_DIR=/opt \
+    ELIXIR_VERSION=1.12.2-1 \
+    NOTEBOOK_ARGS=--notebook-dir=/home/jovyan/work
 
 RUN set -xe \
-  && curl -s https://api.github.com/repos/pprzetacznik/IElixir/releases/latest | grep "tarball_url" | sed -n -e 's/.*tarball_url": "\(.*\)".*/\1/p' | xargs -t curl -fSL -o ielixir.tar.gz \
-  && mkdir ielixir \
-  && tar -zxvf ielixir.tar.gz -C ielixir --strip-components=1 \
-  && rm ielixir.tar.gz \
-  && cd ielixir \
-  && ls -alh \
+  && apt-get update \
+  && apt install -y --no-install-recommends \
+  git \
+  wget \
+  autoconf \
+  g++ \
+  gcc \
+  make \
+  libzmq3-dev \
+  libsqlite3-dev \
+  gnupg2
+
+RUN wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb \
+  && dpkg -i erlang-solutions_2.0_all.deb
+
+RUN set -xe \
+  && apt update \
+  && apt install -f -y --no-install-recommends \
+  elixir=$ELIXIR_VERSION \
+  erlang-dev \
+  erlang-parsetools
+
+USER $NB_UID
+
+RUN cd $HOME \
+  && git clone https://github.com/awill1988/IElixir.git \
+  && cd IElixir \
+  && git switch feature/elixir_1_12_otp_24_support \
   && mix local.hex --force \
   && mix local.rebar --force \
   && mix deps.get \
   && mix deps.compile \
-  && ./install_script.sh \
-  && conda install --quiet --yes 'jupyter_console'
-
-USER $NB_UID
+  && ./install_script.sh
 
 CMD ["start-notebook.sh"]
